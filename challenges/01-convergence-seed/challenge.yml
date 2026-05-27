@@ -7,6 +7,15 @@ chain_family: evm
 chain_id: 31337
 rpc_internal: http://anvil:8545
 description: Intro EVM launcher challenge using one shared chain and per-user setup contracts.
+runtime:
+  type: docker_compose
+  scope: shared_chain
+  compose_file: ../../docker-compose.yml
+  rpc_service: rpc
+  tool_service: forge
+  deploy_mode: lazy_per_challenge
+  deploy_script: ../../scripts/deploy_one.sh
+  metadata_path: ../../metadata/challenges/01-convergence-seed/metadata.json
 launcher:
   factory_contract: contracts/ChallengeFactory.sol:ChallengeFactory
   setup_contract: contracts/Setup.sol:Setup

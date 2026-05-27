@@ -5,6 +5,11 @@ This repository is a clean upload target for NXBCL blockchain challenges.
 Layout:
 
 ```text
+docker-compose.yml
+scripts/
+  deploy_one.sh
+  deploy_all.sh
+  rpc_proxy.py
 challenges/
   01-convergence-seed/
     challenge.yml
@@ -28,21 +33,71 @@ Each challenge follows the launcher model:
 
 Flags must stay in the backend. Do not put flags in contracts, scripts, or `challenge.yml`.
 
+## Local Docker Runtime
+
+Run the shared chain and public RPC proxy:
+
+```bash
+docker compose up -d
+```
+
+Services:
+
+```text
+anvil    internal EVM chain on 8545
+rpc      public HTTP JSON-RPC proxy on localhost:8545
+forge    optional tool profile for lazy per-challenge deploys
+```
+
+Deploy one challenge factory only when the launcher/admin needs it:
+
+```bash
+docker compose run --rm forge scripts/deploy_one.sh 01-convergence-seed
+docker compose run --rm forge scripts/deploy_one.sh 02-convergence
+```
+
+For local smoke testing only, deploy all factories:
+
+```bash
+docker compose run --rm forge scripts/deploy_all.sh
+```
+
+The deploy scripts write:
+
+```text
+metadata/challenges/<challenge_id>/metadata.json
+metadata/challenges/<challenge_id>/artifacts/*.abi.json
+```
+
+Verify RPC:
+
+```bash
+curl -s http://localhost:8545 \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"eth_chainId","params":[]}'
+```
+
+The `rpc` service blocks unsafe local-node methods such as `anvil_*`, `evm_*`, `debug_*`, `admin_*`, and unsigned transaction submission. Players should only receive the proxied RPC URL, not the internal Anvil URL.
+
+This is intentionally not one container stack per challenge. The shared chain stays up once, and each challenge deploys its own factory lazily. User isolation comes from per-user setup contracts created by `spawnFor(address)`.
+
 ## NXBCL Compatibility
 
-The current NXBCL registry supports both:
+The intended sync target is:
 
 ```text
-data_nxbcl/chall/<challenge_id>/challenge.yml
+data_nxbcl/chall/
 ```
 
-and cloned multi-challenge repos:
+In this model, `chall` itself is the cloned Git repository root, so this repo is read as:
 
 ```text
-data_nxbcl/chall/<repo>/challenges/<challenge_id>/challenge.yml
+data_nxbcl/chall/challenges/<challenge_id>/challenge.yml
 ```
 
-That means this repo can be synced by NXBCL as one Git repository while still exposing multiple challenges.
+The registry also keeps compatibility with direct challenge folders and older nested repo caches, but the preferred NXBCL layout is `data_nxbcl/chall` as the repo root.
+
+Important: NXBCL currently has the registry and launcher flow, but the runtime adapter is still a stub. This compose stack is the concrete runtime that the next adapter step should start through NXCTL/Docker Compose lifecycle code.
 
 ## Solver Contract
 
