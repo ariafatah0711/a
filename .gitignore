@@ -1,4 +1,5 @@
 artifacts/
+challenges/*/artifacts/
 broadcast/
 cache/
 out/

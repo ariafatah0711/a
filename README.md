@@ -1,107 +1,90 @@
-# NXBCL NXCTL Challenge Bundle
+# NXBCL Challenge Repository
 
-This repository is a clean upload target for NXBCL blockchain challenges.
+This repository contains only blockchain challenge source files. NXBCL owns the shared Anvil runtime, RPC proxy, deploy scripts, credentials, and metadata generation.
 
-Layout:
+Preferred layout:
 
 ```text
-docker-compose.yml
-scripts/
-  deploy_one.sh
-  deploy_all.sh
-  rpc_proxy.py
 challenges/
   01-convergence-seed/
     challenge.yml
     contracts/
+      Challenge.sol
+      ChallengeFactory.sol
+      Setup.sol
+    foundry.toml
     solve.py
+    README.md
   02-convergence/
     challenge.yml
     contracts/
+    foundry.toml
     solve.py
+    README.md
 ```
 
-Each challenge follows the launcher model:
-
-1. NXBCL deploys one factory contract for the challenge.
-2. The launcher generates a disposable wallet for the logged-in user.
-3. The launcher funds that wallet on the shared RPC.
-4. The launcher calls `factory.spawnFor(wallet)`.
-5. The user receives `RPC_URL`, `PRIVKEY`, and `SETUP_ADDR`.
-6. The user solves the on-chain instance.
-7. The launcher checks `Setup.isSolved()` and returns the flag from the backend.
-
-Flags must stay in the backend. Do not put flags in contracts, scripts, or `challenge.yml`.
-
-## Local Docker Runtime
-
-Run the shared chain and public RPC proxy:
-
-```bash
-docker compose up -d
-```
-
-Services:
+Do not include runtime infrastructure in this repo:
 
 ```text
-anvil    internal EVM chain on 8545
-rpc      public HTTP JSON-RPC proxy on localhost:8545
-forge    optional tool profile for lazy per-challenge deploys
+docker-compose.yml
+scripts/deploy_one.sh
+scripts/rpc_proxy.py
+metadata/
+artifacts/
 ```
 
-Deploy one challenge factory only when the launcher/admin needs it:
+Those files are generated or managed by the NXBCL launcher.
 
-```bash
-docker compose run --rm forge scripts/deploy_one.sh 01-convergence-seed
-docker compose run --rm forge scripts/deploy_one.sh 02-convergence
+## Challenge Contract Shape
+
+Each challenge should provide a factory contract with:
+
+```solidity
+function spawnFor(address player) external returns (address setup);
 ```
 
-For local smoke testing only, deploy all factories:
-
-```bash
-docker compose run --rm forge scripts/deploy_all.sh
-```
-
-The deploy scripts write:
+The launcher deploys one factory per challenge, creates a disposable wallet per participant, funds it, calls `spawnFor(player)`, and returns:
 
 ```text
-metadata/challenges/<challenge_id>/metadata.json
-metadata/challenges/<challenge_id>/artifacts/*.abi.json
+RPC_URL
+PRIVKEY
+SETUP_ADDR
 ```
 
-Verify RPC:
+The setup contract should expose:
 
-```bash
-curl -s http://localhost:8545 \
-  -H "Content-Type: application/json" \
-  -d '{"jsonrpc":"2.0","id":1,"method":"eth_chainId","params":[]}'
+```solidity
+function isSolved() external view returns (bool);
 ```
 
-The `rpc` service blocks unsafe local-node methods such as `anvil_*`, `evm_*`, `debug_*`, `admin_*`, and unsigned transaction submission. Players should only receive the proxied RPC URL, not the internal Anvil URL.
+Flags must stay in the launcher/backend. Do not put real flags in contracts, public scripts, or `challenge.yml`.
 
-This is intentionally not one container stack per challenge. The shared chain stays up once, and each challenge deploys its own factory lazily. User isolation comes from per-user setup contracts created by `spawnFor(address)`.
+## `challenge.yml`
 
-## NXBCL Compatibility
+Minimal example:
 
-The intended sync target is:
+```yaml
+id: 01-convergence-seed
+name: Convergence Seed
+kind: blockchain_rpc
+factory_contract: contracts/ChallengeFactory.sol:ChallengeFactory
+setup_contract: contracts/Setup.sol:Setup
+spawn_function: spawnFor(address)
+checker: Setup.isSolved()
+```
+
+If omitted, NXBCL defaults to:
 
 ```text
-data_nxbcl/chall/
+factory_contract = contracts/ChallengeFactory.sol:ChallengeFactory
+setup_contract   = contracts/Setup.sol:Setup
+spawn_function   = spawnFor(address)
+checker          = Setup.isSolved()
 ```
 
-In this model, `chall` itself is the cloned Git repository root, so this repo is read as:
+## Local Solver
 
-```text
-data_nxbcl/chall/challenges/<challenge_id>/challenge.yml
-```
-
-The registry also keeps compatibility with direct challenge folders and older nested repo caches, but the preferred NXBCL layout is `data_nxbcl/chall` as the repo root.
-
-Important: NXBCL currently has the registry and launcher flow, but the runtime adapter is still a stub. This compose stack is the concrete runtime that the next adapter step should start through NXCTL/Docker Compose lifecycle code.
-
-## Solver Contract
-
-Both solvers expect launcher-provided environment variables:
+Solvers should consume launcher-provided environment variables:
 
 ```bash
 export RPC_URL=http://localhost:8545
@@ -109,5 +92,3 @@ export PRIVKEY=0x...
 export SETUP_ADDR=0x...
 python3 solve.py
 ```
-
-The private key is a temporary CTF wallet key generated by the launcher. It is not a real user wallet.
