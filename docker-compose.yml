@@ -10,12 +10,11 @@ services:
       - "8545"
       - --chain-id
       - "31337"
-      - --accounts
-      - "8"
-      - --balance
-      - "1000"
       - --block-base-fee-per-gas
       - "0"
+      - --accounts
+      - "0"
+      - --mnemonic-random
     expose:
       - "8545"
     healthcheck:
@@ -52,7 +51,7 @@ services:
       PUBLIC_RPC_URL: ${PUBLIC_RPC_URL:-http://localhost:8545}
       RPC_PORT: "${RPC_PORT:-8545}"
       CHAIN_ID: "31337"
-      DEPLOYER_PRIVATE_KEY: ${DEPLOYER_PRIVATE_KEY:-0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80}
+      DEPLOYER_PRIVATE_KEY: ${DEPLOYER_PRIVATE_KEY:-}
     volumes:
       - ./:/workspace
     entrypoint: ["/bin/sh"]
